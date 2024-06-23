@@ -119,6 +119,37 @@ func HTTPAPIServerStreamAdd(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
+
+    // Get the current list of streams and check the count
+    currentStreamsInterface, err := Storage.MarshalledStreamsList()
+    if err != nil {
+        c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
+        return
+    }
+    currentStreamsMap, ok := currentStreamsInterface.(map[string]interface{})
+    if !ok {
+        c.IndentedJSON(500, Message{Status: 0, Payload: "Failed to parse streams list"})
+        return
+    }
+
+	maxStreams := 4 // Define the maximum number of streams allowed
+    if len(currentStreamsMap) >= maxStreams {
+        // Sort or select the stream to delete, here we just assume we delete the first found
+        for uuid := range currentStreamsMap {
+            err = Storage.StreamDelete(uuid)
+            if err != nil {
+                c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
+                log.WithFields(logrus.Fields{
+                    "module": "http_stream",
+                    "func":   "HTTPAPIServerStreamAdd",
+                    "call":   "StreamDelete",
+                }).Errorln(err.Error())
+                return
+            }
+            break // Delete only one stream to make space for the new one
+        }
+    }
+
 	err = Storage.StreamAdd(c.Param("uuid"), payload)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
